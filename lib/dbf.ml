@@ -35,7 +35,7 @@ module Field = struct
     type t = {
       name : uint8_t [@len 11] ;
       datatype : char ;
-      data_address : uint32_t ;
+      reserved0 : uint32_t ;
       length : uint8_t ;
       decimal_count : uint8_t ;
       reserved1 : uint16_t ;
@@ -117,7 +117,6 @@ let field_type_of_char = function
 type field = {
   field_name : string ;
   field_type : field_type ;
-  field_data_address : int ;
   field_length : int ;
   field_decimal_count : int ;
   field_system_column : bool ;
@@ -140,7 +139,6 @@ let field_of_cstruct x =
   Ok {
     field_name ;
     field_type ;
-    field_data_address = Int32.to_int_exn (Field.get_t_data_address x) ;
     field_length = Field.get_t_length x ;
     field_decimal_count = Field.get_t_decimal_count x ;
     field_system_column = bit_test flag 0x01 ;
@@ -187,9 +185,75 @@ let header_of_cstruct x =
        len_header = Header1.get_t_len_header x ;
        len_record = Header1.get_t_len_record x }
 
+
+type column =
+  | String_data of string array
+  | Float_data of float array
+
+type column_setter =
+    Col : {
+      elts : 'a array ;
+      of_cstruct : Cstruct.t -> 'a ;
+      to_column : 'a array -> column ;
+      
+    } -> column_setter
+
+let column_setter header field_pos { field_type ; field_length ; _ } =
+  match field_type with
+  | Character ->
+    Col { elts = Array.create ~len:header.nrecords "" ;
+          of_cstruct = (fun x ->
+              Cstruct.sub x field_pos field_length
+              |> Cstruct.to_string
+              |> Caml.String.trim
+            ) ;
+          to_column = fun elts -> String_data elts }
+  | Numeric ->
+    Col {
+      elts = Array.create ~len:header.nrecords 0. ;
+      of_cstruct = (fun x ->
+          Cstruct.sub x field_pos field_length
+          |> Cstruct.to_string
+          |> Caml.String.trim
+          |> Float.of_string
+        ) ;
+      to_column = fun elts -> Float_data elts ;
+    } ;
+  | _ -> failwith "Dbf: unsupported field type"
+
+let column_set (Col cs) i x =
+  cs.elts.(i) <- cs.of_cstruct x
+
+type t = {
+  header : header ;
+  columns : (string * column) list ;
+}
+
+let read_columns x header =
+  let column_setters =
+    List.fold header.fields ~init:(0, []) ~f:(fun (pos, acc) field ->
+        pos + field.field_length,
+        column_setter header pos field :: acc
+      )
+    |> snd
+    |> List.rev
+  in
+  let rec loop i =
+    if i < header.nrecords then (
+      let record = Cstruct.sub x (header.len_header + 1 + header.len_record * i) (header.len_record - 1) in
+      (* + 1 is for the delete flag *)
+      List.iter column_setters ~f:(fun cs -> column_set cs i record) ;
+      loop (succ i)
+    )
+  in
+  loop 0 ;
+  List.map column_setters ~f:(fun (Col cs) -> cs.to_column cs.elts)
+
 let of_file fn =
   let fd = Unix.openfile fn [O_RDONLY] 0 in
   let t = Unix_cstruct.of_fd fd in
-  let res = header_of_cstruct t in
+  header_of_cstruct t >>= fun header ->
+  let colum_names = List.map header.fields ~f:(fun f -> f.field_name) in
+  let columns = read_columns t header in
   Unix.close fd ;
-  res
+  Ok { header ; columns = List.zip_exn colum_names columns }

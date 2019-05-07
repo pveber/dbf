@@ -40,7 +40,6 @@ type field_type =
 type field = {
   field_name : string ;
   field_type : field_type ;
-  field_data_address : int ;
   field_length : int ;
   field_decimal_count : int ;
   field_system_column : bool ;
@@ -64,11 +63,14 @@ type parser_error = [
   | `Unknown_field_type
 ]
 
-(* type t *)
 
-val of_file : string -> (header, parser_error) result
+type column =
+  | String_data of string array
+  | Float_data of float array
 
+type t = {
+  header : header ;
+  columns : (string * column) list ;
+}
 
-
-
-(** Low-level access function *)
+val of_file : string -> (t, parser_error) result
