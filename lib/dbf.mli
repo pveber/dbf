@@ -17,16 +17,56 @@ type file_type =
   | FoxPro_2_x_or_earlier_with_memo
   | HiPer_Six_format_with_SMT_memo_file
 
+type date = int * int * int
+
+type field_type =
+  | Character
+  | Currency
+  | Numeric
+  | Float
+  | Date
+  | DateTime
+  | Double
+  | Integer
+  | Logical
+  | Memo
+  | General
+  | Picture
+  | Autoincrement
+  | Double_level7
+  | Timestamp
+  | Varchar
+
+type field = {
+  field_name : string ;
+  field_type : field_type ;
+  field_data_address : int ;
+  field_length : int ;
+  field_decimal_count : int ;
+  field_system_column : bool ;
+  field_column_can_store_null : bool ;
+  field_binary_column : bool ;
+  field_column_autoincrementing : bool ;
+}
+
+type header = {
+  file_type : file_type ;
+  last_update : date ;
+  fields : field list ;
+  nrecords : int ;
+  len_header : int ;
+  len_record : int ;
+}
+
 type parser_error = [
   | `Unexpected_end_of_file
   | `Unknown_file_type
+  | `Unknown_field_type
 ]
 
-type t
+(* type t *)
 
-val read : in_channel -> (t, parser_error) result
-
-val of_file : string -> int32 * string list
+val of_file : string -> (header, parser_error) result
 
 
 
