@@ -1,6 +1,8 @@
 (** 
-   https://www.dbf2002.com/dbf-file-format.html 
-   https://formats.kaitai.io/dbf/index.html
+   Sources:
+   - https://www.dbf2002.com/dbf-file-format.html 
+   - https://formats.kaitai.io/dbf/index.html
+   - https://en.wikipedia.org/wiki/.dbf
 *)
 
 type file_type =
