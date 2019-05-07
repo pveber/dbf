@@ -1,4 +1,7 @@
-(** https://www.dbf2002.com/dbf-file-format.html *)
+(** 
+   https://www.dbf2002.com/dbf-file-format.html 
+   https://formats.kaitai.io/dbf/index.html
+*)
 
 type file_type =
   | FoxBASE
@@ -22,5 +25,10 @@ type parser_error = [
 type t
 
 val read : in_channel -> (t, parser_error) result
+
+val of_file : string -> int32 * string list
+
+
+
 
 (** Low-level access function *)

@@ -1,4 +1,5 @@
 (library
   (name dbf)
   (public_name dbf)
-  (libraries core_kernel rresult))
+  (libraries core_kernel cstruct-unix rresult)
+  (preprocess (pps ppx_cstruct)))
