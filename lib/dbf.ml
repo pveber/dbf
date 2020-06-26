@@ -1,3 +1,4 @@
+module UNIX = Unix
 open Rresult.R.Infix
 open Core_kernel
 
@@ -250,10 +251,10 @@ let read_columns x header =
   List.map column_setters ~f:(fun (Col cs) -> cs.to_column cs.elts)
 
 let of_file fn =
-  let fd = Unix.openfile fn [O_RDONLY] 0 in
+  let fd = UNIX.openfile fn [O_RDONLY] 0 in
   let t = Unix_cstruct.of_fd fd in
   header_of_cstruct t >>= fun header ->
   let colum_names = List.map header.fields ~f:(fun f -> f.field_name) in
   let columns = read_columns t header in
-  Unix.close fd ;
+  UNIX.close fd ;
   Ok { header ; columns = List.zip_exn colum_names columns }
