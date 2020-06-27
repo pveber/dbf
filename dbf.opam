@@ -1,6 +1,6 @@
 opam-version: "2.0"
 name: "dbf"
-version: "0.1"
+version: "0.1.1"
 maintainer: "Philippe Veber <philippe.veber@gmail.com>"
 authors: "Philippe Veber <philippe.veber@gmail.com>"
 license: "ISC"
@@ -8,9 +8,9 @@ homepage: "https://github.com/pveber/dbf"
 bug-reports: "https://github.com/pveber/dbf/issues"
 dev-repo: "git+https://github.com/pveber/dbf.git"
 depends: [
+  "core_kernel"  {>= "v0.14.0"}
   "cstruct-unix" {>= "4.0.0"}
   "ppx_cstruct" {>= "4.0.0"}
-  "core_kernel"  {>= "v0.12.0"}
   "rresult" {>= "0.6.0"}
 ]
 build: [
