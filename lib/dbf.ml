@@ -1,11 +1,8 @@
-module UNIX = Unix
-open Rresult.R.Infix
-open Core_kernel
-
+let ( let* ) = Result.bind
 
 let string_of_cstring s =
-  match String.index s '\x00' with
-  | Some len -> String.sub s ~pos:0 ~len
+  match String.index_opt s '\x00' with
+  | Some len -> String.sub s 0 len
   | None -> s
 
 module Header1 = struct
@@ -135,7 +132,7 @@ let field_of_cstruct x =
     |> Cstruct.to_string
     |> string_of_cstring
   in
-  field_type_of_char (Field.get_t_datatype x) >>= fun field_type ->
+  let* field_type = field_type_of_char (Field.get_t_datatype x) in
   let flag = Field.get_t_field_flags x in
   Ok {
     field_name ;
@@ -157,7 +154,7 @@ let fields_of_cstruct t =
       match field_of_cstruct field with
       | Ok f ->
         loop (f :: acc) (pos + Field.sizeof_t)
-      | Error e -> Error e
+      | Error _e as e -> e
   in
   loop [] (Header1.sizeof_t + Header2.sizeof_t)
 
@@ -177,12 +174,12 @@ type header = {
 }
 
 let header_of_cstruct x =
-  file_type_of_byte (Header1.get_t_file_type x) >>= fun file_type ->
-  fields_of_cstruct x >>= fun fields ->
+  let* file_type = file_type_of_byte (Header1.get_t_file_type x) in
+  let* fields = fields_of_cstruct x in
   Ok { file_type ;
        last_update = Header1.(get_t_yy x, get_t_mm x, get_t_dd x) ;
        fields ;
-       nrecords = Int32.to_int_exn (Header1.get_t_nrecords x) ;
+       nrecords = Int32.to_int (Header1.get_t_nrecords x) ;
        len_header = Header1.get_t_len_header x ;
        len_record = Header1.get_t_len_record x }
 
@@ -196,26 +193,26 @@ type column_setter =
       elts : 'a array ;
       of_cstruct : Cstruct.t -> 'a ;
       to_column : 'a array -> column ;
-      
+
     } -> column_setter
 
 let column_setter header field_pos { field_type ; field_length ; _ } =
   match field_type with
   | Character ->
-    Col { elts = Array.create ~len:header.nrecords "" ;
+    Col { elts = Array.make header.nrecords "" ;
           of_cstruct = (fun x ->
               Cstruct.sub x field_pos field_length
               |> Cstruct.to_string
-              |> Caml.String.trim
+              |> String.trim
             ) ;
           to_column = fun elts -> String_data elts }
   | Numeric ->
     Col {
-      elts = Array.create ~len:header.nrecords 0. ;
+      elts = Array.make header.nrecords 0. ;
       of_cstruct = (fun x ->
           Cstruct.sub x field_pos field_length
           |> Cstruct.to_string
-          |> Caml.String.trim
+          |> String.trim
           |> Float.of_string
         ) ;
       to_column = fun elts -> Float_data elts ;
@@ -232,10 +229,10 @@ type t = {
 
 let read_columns x header =
   let column_setters =
-    List.fold header.fields ~init:(0, []) ~f:(fun (pos, acc) field ->
+    List.fold_left  (fun (pos, acc) field ->
         pos + field.field_length,
         column_setter header pos field :: acc
-      )
+    ) (0, []) header.fields
     |> snd
     |> List.rev
   in
@@ -243,18 +240,18 @@ let read_columns x header =
     if i < header.nrecords then (
       let record = Cstruct.sub x (header.len_header + 1 + header.len_record * i) (header.len_record - 1) in
       (* + 1 is for the delete flag *)
-      List.iter column_setters ~f:(fun cs -> column_set cs i record) ;
+      List.iter (fun cs -> column_set cs i record) column_setters;
       loop (succ i)
     )
   in
   loop 0 ;
-  List.map column_setters ~f:(fun (Col cs) -> cs.to_column cs.elts)
+  List.map (fun (Col cs) -> cs.to_column cs.elts) column_setters
 
 let of_file fn =
-  let fd = UNIX.openfile fn [O_RDONLY] 0 in
+  let fd = Unix.openfile fn [O_RDONLY] 0 in
   let t = Unix_cstruct.of_fd fd in
-  header_of_cstruct t >>= fun header ->
-  let colum_names = List.map header.fields ~f:(fun f -> f.field_name) in
+  let* header = header_of_cstruct t in
+  let colum_names = List.map (fun f -> f.field_name)  header.fields in
   let columns = read_columns t header in
-  UNIX.close fd ;
-  Ok { header ; columns = List.zip_exn colum_names columns }
+  Unix.close fd;
+  Ok { header ; columns = List.map2 (fun n c -> n, c) colum_names columns }
