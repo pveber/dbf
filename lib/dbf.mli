@@ -1,6 +1,6 @@
-(** 
+(**
    Sources:
-   - https://www.dbf2002.com/dbf-file-format.html 
+   - https://www.dbf2002.com/dbf-file-format.html
    - https://formats.kaitai.io/dbf/index.html
    - https://en.wikipedia.org/wiki/.dbf
 *)
@@ -75,4 +75,5 @@ type t = {
   columns : (string * column) list ;
 }
 
+val of_string : string -> (t, parser_error) result
 val of_file : string -> (t, parser_error) result
