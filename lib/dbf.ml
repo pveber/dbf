@@ -247,11 +247,19 @@ let read_columns x header =
   loop 0 ;
   List.map (fun (Col cs) -> cs.to_column cs.elts) column_setters
 
-let of_file fn =
-  let fd = Unix.openfile fn [O_RDONLY] 0 in
-  let t = Unix_cstruct.of_fd fd in
+let of_cstruct t =
   let* header = header_of_cstruct t in
   let colum_names = List.map (fun f -> f.field_name)  header.fields in
   let columns = read_columns t header in
-  Unix.close fd;
   Ok { header ; columns = List.map2 (fun n c -> n, c) colum_names columns }
+
+let of_string s =
+  let t = Cstruct.of_string s in
+  of_cstruct t
+
+let of_file fn =
+  let fd = Unix.openfile fn [O_RDONLY] 0 in
+  Fun.protect ~finally:(fun () -> Unix.close fd) (fun () ->
+    let t = Unix_cstruct.of_fd fd in
+    of_cstruct t
+  )
